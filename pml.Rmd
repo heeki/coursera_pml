@@ -13,7 +13,7 @@ The course project uses data from the following [website](http://groupware.les.i
 The weight-lifting exercises are categorized by 5 classes: sitting-down, standing-up, standing, walking, and sitting. The goal of this exercise is to use the sensor data to predict the class of exercise being performed.
 
 ### Methodology
-The methodology used for this project goes through the following process, which will be detailed in the corresponding sections below.
+The methodology used for this project goes through the following process, which will be detailed in the corresponding sections below. The caret package was used extensively for creating cross-validate subsets, for training the model, and for generating predictions and confusion matrices.
 
 - Data Input
 - Data Inspection

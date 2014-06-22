@@ -1,0 +1,141 @@
+---
+title: "Practical Machine Learning Project"
+author: "Heeki Park"
+date: "06/21/2014"
+output: html_document
+---
+
+
+### Executive Summary
+The goal of this paper is to outline the process used to complete the course project for *Practical Machine Learning*.
+The course project uses data from the following [website](http://groupware.les.inf.puc-rio.br/har). The dataset contains 160 features from
+6 different subjects performing weight-lifting exercises. The subjects wore sensors on their arms, hands, waist, and on the weight itself.
+The weight-lifting exercises are categorized by 5 classes: sitting-down, standing-up, standing, walking, and sitting. The goal of this exercise is to use the sensor data to predict the class of exercise being performed.
+
+### Methodology
+The methodology used for this project goes through the following process, which will be detailed in the corresponding sections below.
+
+- Data Input
+- Data Inspection
+- Model Building
+- Cross Validation
+- Final Prediction
+
+
+##### Data Input
+The data was provided in two sets:
+
+- data.train: 19622 observations with the class identified in the last column
+- data.test: 20 observations with the same features except the class is unidentified
+
+```
+data.train <- read.csv("pml-training.csv")
+data.test <- read.csv("pml-testing.csv")
+```
+
+##### Data Inspection
+The data was first manually inspected to gain an understanding of the general structure of the dataset. Some basic observations were as follows:
+
+- The first 6 columns included basic descriptive information about that row and were not pertinent for training a model.
+- A large number of columns had either blank or NA values for the majority of the rows.
+- For columns with a lot of NA values, the few that did populate actual data was typically associated with the belt sensor.
+
+In order to train a model against a more useful set of features, a function was created to identify columns in which the majority of rows are either blank or NA values. The following function finds the percentage of rows that have either blank or NA values and uses a 95% threshold to determine if that column is "useless" and should be eliminated from the model.
+
+```
+is.useless <- function(x) {
+  tmp.threshold <- 0.95
+  tmp.items <- length(x)
+  tmp.na <- sum(is.na(x))
+  tmp.blank <- sum(x=="")
+  if (is.na(tmp.blank)) {
+    tmp.blank <- 0
+  }
+  tmp.ratio = (tmp.na + tmp.blank) / tmp.items
+  tmp.ratio > tmp.threshold
+}
+```
+
+That function is then applied against every column in the dataset. The result is a boolean vector of whether a column is deemed "useless"
+or not. That boolean vector is then used to remove columns from the dataset.
+
+```
+useless.cols <- apply(data.train, 2, is.useless)
+data.train <- data.train[,!useless.cols]
+data.test <- data.test[,!useless.cols]
+```
+
+##### Model Building
+In order to perform cross-validation, the training set was sub-divided into a training set and a testing set:
+
+- index.y is the index of the last column of the training dataset, which represents the dependent/outcome variable
+- index.train is the vector of indices that will go into the training subset
+- subset.train: 80% of the of data.train was assigned to this subset
+- subset.test: the remainder was then assigned to this subset
+
+```
+set.seed(12345)
+index.y <- ncol(data.train)
+index.train <- createDataPartition(data.train[,index.y], p=0.8, list=FALSE)
+subset.train <- data.train[index.train, ]
+subset.test <- data.train[-index.train, ]
+```
+
+From here, the model is then trained using random forests. A train control object is created to enable parallel processing
+to speed up the model training process.
+
+```
+my.trainctrl <- trainControl(allowParallel=TRUE)
+my.modelfit <- train(classe ~ ., data=subset.train, method="rf", trControl=my.trainctrl)
+```
+
+##### Cross Validation
+With the model trained using the subset.train data, we can cross-validate the model with the subset.test dataset and
+produce a confusion matrix to generate the out-of-bag error of the model.
+
+```
+my.prediction.test <- predict(my.modelfit$finalModel, newdata=subset.test)
+confusionMatrix(my.prediction.test, subset.test$classe)
+```
+
+The confusion matrix output is below, indicating a 99.8% accuracy against the subset.test dataset.
+
+```
+Confusion Matrix and Statistics
+
+          Reference
+Prediction    A    B    C    D    E
+         A 1116    1    0    0    0
+         B    0  758    4    0    0
+         C    0    0  680    1    0
+         D    0    0    0  642    2
+         E    0    0    0    0  719
+
+Overall Statistics
+                                         
+               Accuracy : 0.998          
+                 95% CI : (0.996, 0.9991)
+    No Information Rate : 0.2845         
+    P-Value [Acc > NIR] : < 2.2e-16 
+```
+
+##### Final Prediction
+From here, the model was used to predict the class of the 20 observations in the data.test dataset. These predictions were then
+submitted to the coursera submission page.
+
+```
+my.prediction.final <- predict(my.modelfit$finalModel, newdata=data.test)
+```
+
+The following output produced the correct answers:
+
+```
+> my.prediction.final
+ 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 
+ B  A  B  A  A  E  D  B  A  A  B  C  B  A  E  E  A  B  B  B 
+Levels: A B C D E
+```
+
+### Conclusion
+The random forest algorithm trained on 80% of the data.test dataset was able to produce a fairly accurate model against the
+cross-validation subset. For the data.test final dataset, the model was able to produce the correct 20 answers as well.
